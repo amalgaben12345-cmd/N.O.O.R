@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تحدي المصطلحات التشريحية</title>
+    <style>
+        :root { --primary: #2c3e50; --accent: #3498db; --success: #27ae60; --danger: #e74c3c; }
+        body { font-family: sans-serif; background: #f4f7f6; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; direction: rtl; }
+        .container { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center; width: 95%; max-width: 900px; }
+        .screen { display: none; }
+        .active { display: block; }
+        #gameArea { position: relative; display: inline-block; width: 500px; height: 750px; border: 1px solid #ccc; background: #fff; margin-bottom: 20px; }
+        #bodyImg { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+        
+        /* صناديق الإسقاط */
+        .drop-zone {
+            position: absolute;
+            width: 100px; height: 30px;
+            border: 2px dashed #aaa;
+            background: rgba(255,255,255,0.8);
+            border-radius: 5px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 12px; font-weight: bold;
+            transform: translate(-50%, -50%);
+            z-index: 10;
+            cursor: pointer;
+        }
+        .drop-zone.hover { border-color: var(--accent); background: #e1f5fe; }
+        
+        /* بنك الكلمات */
+        #wordsBank { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; padding: 15px; background: #fafafa; border-radius: 10px; border: 1px solid #eee; margin-top: 10px; direction: ltr; }
+        .word-item { padding: 8px 15px; background: white; border: 1px solid #ccc; border-radius: 20px; cursor: grab; font-size: 13px; font-weight: bold; user-select: none; }
+        .word-item:active { cursor: grabbing; }
+
+        .correct { background: var(--success) !important; color: white; border: none; }
+        .wrong { background: var(--danger) !important; color: white; border: none; }
+        
+        button { padding: 10px 25px; cursor: pointer; border-radius: 5px; border: none; background: var(--accent); color: white; font-size: 16px; margin: 5px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div id="startScreen" class="screen active">
+        <h1>🦴 تحدي المصطلحات التشريحية</h1>
+        <button onclick="showScreen('selectScreen')">ابدأ اللعب</button>
+    </div>
+
+    <div id="selectScreen" class="screen">
+        <h2>اختر الوضع</h2>
+        <button onclick="startGame('front')">Anterior (الأمامي)</button>
+        <button onclick="startGame('back')" style="background:#9b59b6">Posterior (الخلفي)</button>
+    </div>
+
+    <div id="gameScreen" class="screen">
+        <div id="gameArea">
+            <img id="bodyImg" src="" alt="Body">
+            <div id="zonesContainer"></div>
+        </div>
+        <div id="wordsBank"></div>
+        <div id="controls" style="margin-top:20px;">
+            <button id="finishBtn" onclick="finishGame()" style="background:var(--success)">إنهاء ومراجعة</button>
+            <button onclick="location.reload()" style="background:#7f8c8d">إعادة</button>
+        </div>
+        <h2 id="resultText"></h2>
+    </div>
+</div>
+
+<script>
+    const data = {
+        front: {
+            img: "body_front.jpg", 
+            parts: [
+                // يمين (بالنسبة لنا)
+                { label: "Nasal", t: "18.5%", l: "18%" }, { label: "Oral", t: "22.5%", l: "18%" },
+                { label: "Cervical", t: "26.5%", l: "18%" }, { label: "Acromial", t: "30.5%", l: "18%" },
+                { label: "Thoracic", t: "36.5%", l: "18%" }, { label: "Brachial", t: "42.5%", l: "18%" },
+                { label: "Antecubital", t: "47.5%", l: "18%" }, { label: "Abdominal", t: "52.5%", l: "18%" },
+                { label: "Umbilical", t: "57.5%", l: "18%" }, { label: "Carpal", t: "67.5%", l: "15%" },
+                { label: "Digital", t: "72.5%", l: "15%" }, { label: "Pubic", t: "77.5%", l: "15%" },
+                { label: "Patellar", t: "83.5%", l: "15%" }, { label: "Crural", t: "90.5%", l: "15%" },
+                { label: "Tarsal", t: "96.5%", l: "15%" },
+                // يسار (بالنسبة لنا)
+                { label: "Orbital", t: "18.5%", l: "82%" }, { label: "Buccal", t: "22.5%", l: "82%" },
+                { label: "Sternal", t: "28.5%", l: "82%" }, { label: "Axillary", t: "33.5%", l: "82%" },
+                { label: "Pelvic", t: "52.5%", l: "85%" }, { label: "Coxal", t: "62.5%", l: "85%" },
+                { label: "Inguinal", t: "67.5%", l: "85%" }, { label: "Femoral", t: "74.5%", l: "85%" },
+                { label: "Fibular", t: "82.5%", l: "85%" }
+            ]
+        },
+        back: {
+            img: "body_back.jpg",
+            parts: [
+                { label: "Cephalic", t: "21.5%", l: "18%" }, { label: "Thoracic", t: "40.5%", l: "18%" },
+                { label: "Femoral", t: "72.5%", l: "18%" }, { label: "Crural", t: "85.5%", l: "18%" },
+                { label: "Occipital", t: "19.5%", l: "82%" }, { label: "Deltoid", t: "28.5%", l: "82%" },
+                { label: "Scapular", t: "35.5%", l: "82%" }, { label: "Vertebral", t: "41.5%", l: "82%" },
+                { label: "Olecranal", t: "47.5%", l: "82%" }, { label: "Lumbar", t: "54.5%", l: "82%" },
+                { label: "Sacral", t: "58.5%", l: "82%" }, { label: "Gluteal", t: "68.5%", l: "82%" },
+                { label: "Popliteal", t: "80.5%", l: "82%" }, { label: "Sural", t: "87.5%", l: "82%" },
+                { label: "Calcaneal", t: "95.5%", l: "82%" }, { label: "Plantar", t: "98.5%", l: "82%" }
+            ]
+        }
+    };
+
+    function showScreen(id) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+    }
+
+    function startGame(mode) {
+        const config = data[mode];
+        document.getElementById('bodyImg').src = config.img;
+        const zones = document.getElementById('zonesContainer');
+        const bank = document.getElementById('wordsBank');
+        zones.innerHTML = ''; bank.innerHTML = '';
+
+        config.parts.forEach(p => {
+            const z = document.createElement('div');
+            z.className = 'drop-zone';
+            z.style.top = p.t; z.style.left = p.l;
+            z.dataset.answer = p.label;
+            z.ondragover = e => e.preventDefault();
+            z.ondrop = handleDrop;
+            zones.appendChild(z);
+        });
+
+        [...config.parts].sort(() => Math.random() - 0.5).forEach(p => {
+            const w = document.createElement('div');
+            w.className = 'word-item';
+            w.innerText = p.label;
+            w.draggable = true;
+            w.id = "id" + Math.random().toString(16).slice(2);
+            w.ondragstart = e => {
+                e.dataTransfer.setData("text", e.target.innerText);
+                e.dataTransfer.setData("sid", e.target.id);
+            };
+            bank.appendChild(w);
+        });
+        showScreen('gameScreen');
+    }
+
+    function handleDrop(e) {
+        e.preventDefault();
+        const text = e.dataTransfer.getData("text");
+        const sid = e.dataTransfer.getData("sid");
+        if (e.target.innerText === "") {
+            e.target.innerText = text;
+            document.getElementById(sid).style.display = "none";
+        }
+    }
+
+    function finishGame() {
+        let score = 0;
+        const zones = document.querySelectorAll('.drop-zone');
+        zones.forEach(z => {
+            if (z.innerText === z.dataset.answer) { z.classList.add('correct'); score++; }
+            else { z.classList.add('wrong'); z.innerHTML = `<small>${z.dataset.answer}</small>`; }
+        });
+        document.getElementById('resultText').innerText = `النتيجة: ${score} من ${zones.length}`;
+        document.getElementById('finishBtn').style.display = 'none';
+        document.getElementById('wordsBank').style.display = 'none';
+    }
+</script>
+</body>
+</html>
